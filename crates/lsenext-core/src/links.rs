@@ -50,7 +50,7 @@ impl LinkKind {
         }
     }
 
-    pub fn drop_title(&self) -> &str { {
+    pub fn drop_title(&self) -> &str {
         let strings = crate::i18n::strings();
         match self {
             Self::Symbolic => &strings.drop_symlink,
