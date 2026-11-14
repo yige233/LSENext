@@ -13,6 +13,7 @@ pub struct Strings {
     pub create_junction: String,
     pub create_hardlink: String,
     pub clear_source: String,
+    pub edit_sources: String,
     pub diagnostics: String,
     pub about_description: String,
     pub developer_mode_enabled: String,
