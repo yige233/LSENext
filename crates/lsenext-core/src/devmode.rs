@@ -189,9 +189,9 @@ pub fn prompt_developer_mode_if_needed(force: bool) -> bool {
 
     #[cfg(windows)]
     {
-        let message = crate::i18n::strings().developer_mode_prompt;
+        let message = &crate::i18n::strings().developer_mode_prompt;
 
-        if ask_yes_no("LSENext", &message) {
+        if ask_yes_no("LSENext", message) {
             let _ = open_developer_settings();
             true
         } else {
