@@ -161,21 +161,27 @@ fn create_links(kind: LinkKind, target: &Path, sources: &[PathBuf]) -> Result<()
 }
 
 fn show_about() {
+    let strings = lsenext_core::i18n::strings();
     let dev_mode = is_developer_mode_enabled();
+
     let dev_status = if dev_mode {
-        "Developer Mode: Enabled (Symbolic links require no UAC)"
+        &strings.developer_mode_enabled
     } else {
-        "Developer Mode: Disabled (Enable in Settings for no-UAC symbolic links)"
+        &strings.developer_mode_disabled
     };
+
     let base_info = format!(
-        "LSENext {}\nQuick symbolic, hard link, and directory junction creation.\n\n{}",
+        "LSENext {}\n{}\n\n{}",
         env!("CARGO_PKG_VERSION"),
+        strings.about_description,
         dev_status,
     );
+
     if !dev_mode {
         let question = format!(
-            "{}\n\nWould you like to open Windows Settings to enable Developer Mode now?",
+            "{}\n\n{}",
             base_info,
+            strings.developer_mode_question,
         );
         if ask_yes_no("LSENext", &question) {
             let _ = open_developer_settings();

@@ -3,6 +3,7 @@ pub mod elevation;
 pub mod links;
 pub mod state;
 pub mod ui;
+pub mod i18n;
 
 pub use devmode::{
     has_prompted_developer_mode, is_developer_mode_enabled, mark_prompted_developer_mode,

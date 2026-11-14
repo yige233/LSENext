@@ -131,9 +131,10 @@ impl CommandKind {
         }
     }
 
-    pub const fn title(&self) -> &'static str {
+    pub fn title(&self) -> &str {
+        let strings = lsenext_core::i18n::strings();
         match self {
-            Self::PickSource => "Pick Link Source",
+            Self::PickSource => &strings.pick_source,
             Self::DropSymbolic => LinkKind::Symbolic.drop_title(),
             Self::DropRelativeSymbolic => LinkKind::RelativeSymbolic.drop_title(),
             Self::DropJunction => LinkKind::Junction.drop_title(),
@@ -142,9 +143,9 @@ impl CommandKind {
             Self::CreateRelativeSymbolic => LinkKind::RelativeSymbolic.create_title(),
             Self::CreateJunction => LinkKind::Junction.create_title(),
             Self::CreateHardLink => LinkKind::HardLink.create_title(),
-            Self::ClearSource => "Clear Link Source",
+            Self::ClearSource => &strings.clear_source,
             #[cfg(feature = "diagnostics")]
-            Self::Diagnostics => "Debug Diagnostics",
+            Self::Diagnostics => &strings.diagnostics,
         }
     }
 }

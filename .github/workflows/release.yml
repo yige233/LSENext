@@ -1,10 +1,12 @@
-name: Release
+name: Manual Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing tag to build and publish (for example, v0.2.6)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,48 +16,33 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+
       - name: Test
         run: cargo test --workspace
-      - name: Package x64 debug
-        shell: pwsh
-        run: |
-          dotnet tool restore
-          ./scripts/package.ps1 -Architecture x64 -Configuration debug -ReleaseTag ${{ github.ref_name }}
+
+      - name: Restore WiX tools
+        run: dotnet tool restore
+
       - name: Package x64 release
         shell: pwsh
-        run: |
-          dotnet tool restore
-          ./scripts/package.ps1 -Architecture x64 -Configuration release -ReleaseTag ${{ github.ref_name }}
-      - name: Package arm64 debug
+        run: ./scripts/package.ps1 -Architecture x64 -Configuration release -ReleaseTag "${{ inputs.release_tag }}"
+
+      - name: Package ARM64 release
         shell: pwsh
-        run: |
-          dotnet tool restore
-          ./scripts/package.ps1 -Architecture arm64 -Configuration debug -ReleaseTag ${{ github.ref_name }}
-      - name: Package arm64 release
-        shell: pwsh
-        run: |
-          dotnet tool restore
-          ./scripts/package.ps1 -Architecture arm64 -Configuration release -ReleaseTag ${{ github.ref_name }}
-      - name: Delete pre-releases
-        if: "!contains(github.ref_name, '-')"
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $releases = gh release list --json tagName,isPrerelease | ConvertFrom-Json
-          foreach ($r in $releases | Where-Object { $_.isPrerelease }) {
-            Write-Host "Deleting pre-release: $($r.tagName)"
-            gh release delete $r.tagName --yes
-          }
+        run: ./scripts/package.ps1 -Architecture arm64 -Configuration release -ReleaseTag "${{ inputs.release_tag }}"
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: LSENext ${{ github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ inputs.release_tag }}
+          name: LSENext ${{ inputs.release_tag }}
+          prerelease: ${{ contains(inputs.release_tag, '-') }}
           generate_release_notes: true
           files: |
             artifacts/*.msi

@@ -50,21 +50,23 @@ impl LinkKind {
         }
     }
 
-    pub const fn drop_title(&self) -> &'static str {
+    pub fn drop_title(&self) -> &str { {
+        let strings = crate::i18n::strings();
         match self {
-            Self::Symbolic => "Drop Symbolic Link",
-            Self::RelativeSymbolic => "Drop Relative Symbolic Link",
-            Self::Junction => "Drop Directory Junction",
-            Self::HardLink => "Drop Hard Link",
+            Self::Symbolic => &strings.drop_symlink,
+            Self::RelativeSymbolic => &strings.drop_relative_symlink,
+            Self::Junction => &strings.drop_junction,
+            Self::HardLink => &strings.drop_hardlink,
         }
     }
 
-    pub const fn create_title(&self) -> &'static str {
+    pub fn create_title(&self) -> &str {
+        let strings = crate::i18n::strings();
         match self {
-            Self::Symbolic => "Create Symbolic Links...",
-            Self::RelativeSymbolic => "Create Relative Symbolic Links...",
-            Self::Junction => "Create Directory Junctions...",
-            Self::HardLink => "Create Hard Links...",
+            Self::Symbolic => &strings.create_symlink,
+            Self::RelativeSymbolic => &strings.create_relative_symlink,
+            Self::Junction => &strings.create_junction,
+            Self::HardLink => &strings.create_hardlink,
         }
     }
 

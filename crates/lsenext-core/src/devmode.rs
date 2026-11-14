@@ -189,19 +189,9 @@ pub fn prompt_developer_mode_if_needed(force: bool) -> bool {
 
     #[cfg(windows)]
     {
-        let (title, message) = if is_chinese_ui() {
-            (
-                "LSENext",
-                "检测到当前系统尚未开启「开发人员模式」。\n\n开启开发人员模式后，创建符号链接（软链接）无需每次经过管理员提权 (UAC)，体验更流畅。\n\n是否立即打开系统设置前往开启？",
-            )
-        } else {
-            (
-                "LSENext",
-                "Windows Developer Mode is currently disabled on this system.\n\nEnabling Developer Mode allows creating symbolic links without UAC administrator prompts every time.\n\nWould you like to open Windows Settings to enable it now?",
-            )
-        };
+        let message = crate::i18n::strings().developer_mode_prompt;
 
-        if ask_yes_no(title, message) {
+        if ask_yes_no("LSENext", &message) {
             let _ = open_developer_settings();
             true
         } else {
