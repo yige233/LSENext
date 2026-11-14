@@ -50,6 +50,8 @@ pub const CLSID_LSENEXT_CREATE_JUNCTION: GUID =
     GUID::from_u128(0x32ad61d5_1919_4582_95dc_d9eb0bb6e00c);
 pub const CLSID_LSENEXT_CREATE_HARDLINK: GUID =
     GUID::from_u128(0x32ad61d5_1919_4582_95dc_d9eb0bb6e00d);
+pub const CLSID_LSENEXT_EDIT_SOURCES: GUID =
+    GUID::from_u128(0x32ad61d5_1919_4582_95dc_d9eb0bb6e00e);
 
 static MODULE_PATH: OnceLock<PathBuf> = OnceLock::new();
 
@@ -82,6 +84,7 @@ impl RootKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandKind {
     PickSource,
+    EditSources,
     DropSymbolic,
     DropRelativeSymbolic,
     DropJunction,
@@ -99,6 +102,7 @@ impl CommandKind {
     pub const fn clsid(&self) -> GUID {
         match self {
             Self::PickSource => CLSID_LSENEXT_PICK_SOURCE,
+            Self::EditSources => CLSID_LSENEXT_EDIT_SOURCES,
             Self::DropSymbolic => CLSID_LSENEXT_DROP_SYMLINK,
             Self::DropRelativeSymbolic => CLSID_LSENEXT_DROP_RELATIVE_SYMLINK,
             Self::DropJunction => CLSID_LSENEXT_DROP_JUNCTION,
@@ -116,6 +120,7 @@ impl CommandKind {
     pub fn from_clsid(guid: &GUID) -> Option<Self> {
         match *guid {
             CLSID_LSENEXT_PICK_SOURCE => Some(Self::PickSource),
+            CLSID_LSENEXT_EDIT_SOURCES => Some(Self::EditSources),
             CLSID_LSENEXT_DROP_SYMLINK => Some(Self::DropSymbolic),
             CLSID_LSENEXT_DROP_RELATIVE_SYMLINK => Some(Self::DropRelativeSymbolic),
             CLSID_LSENEXT_DROP_JUNCTION => Some(Self::DropJunction),
@@ -135,6 +140,7 @@ impl CommandKind {
         let strings = lsenext_core::i18n::strings();
         match self {
             Self::PickSource => &strings.pick_source,
+            Self::EditSources => &strings.edit_sources,
             Self::DropSymbolic => LinkKind::Symbolic.drop_title(),
             Self::DropRelativeSymbolic => LinkKind::RelativeSymbolic.drop_title(),
             Self::DropJunction => LinkKind::Junction.drop_title(),
@@ -190,7 +196,18 @@ impl IExplorerCommand_Impl for RootCommand_Impl {
         _items: Option<&IShellItemArray>,
         _ok_to_be_slow: BOOL,
     ) -> windows::core::Result<u32> {
-        Ok(ECS_ENABLED.0 as u32)
+        let state = match self.kind {
+            RootKind::Background => {
+                if load_state().ok().flatten().is_some() {
+                    ECS_ENABLED
+                } else {
+                    ECS_HIDDEN
+                }
+            }
+            RootKind::File | RootKind::Directory => ECS_ENABLED,
+        };
+
+        Ok(state.0 as u32)
     }
 
     fn Invoke(
@@ -234,58 +251,68 @@ impl IExplorerCommand_Impl for MenuCommand_Impl {
         items: Option<&IShellItemArray>,
         _ok_to_be_slow: BOOL,
     ) -> windows::core::Result<u32> {
-        let state = match self.kind {
-            CommandKind::PickSource => ECS_ENABLED,
-            #[cfg(feature = "diagnostics")]
-            CommandKind::Diagnostics => ECS_ENABLED,
-            CommandKind::DropSymbolic | CommandKind::DropRelativeSymbolic | CommandKind::ClearSource => {
-                if load_state().ok().flatten().is_some() {
-                    ECS_ENABLED
-                } else {
-                    ECS_DISABLED
-                }
-            }
-            CommandKind::DropJunction => {
-                if load_state()
-                    .ok()
-                    .flatten()
-                    .map(|state| LinkKind::Junction.supports_sources(&state.sources))
-                    .unwrap_or(false)
-                {
-                    ECS_ENABLED
-                } else {
-                    ECS_HIDDEN
-                }
-            }
-            CommandKind::DropHardLink => {
-                if load_state()
-                    .ok()
-                    .flatten()
-                    .map(|state| LinkKind::HardLink.supports_sources(&state.sources))
-                    .unwrap_or(false)
-                {
-                    ECS_ENABLED
-                } else {
-                    ECS_HIDDEN
-                }
-            }
-            CommandKind::CreateSymbolic | CommandKind::CreateRelativeSymbolic => ECS_ENABLED,
-            CommandKind::CreateJunction => {
-                if items_all_dirs(items) {
-                    ECS_ENABLED
-                } else {
-                    ECS_HIDDEN
-                }
-            }
-            CommandKind::CreateHardLink => {
-                if items_all_files(items) {
-                    ECS_ENABLED
-                } else {
-                    ECS_HIDDEN
-                }
-            }
-        };
-        Ok(state.0 as u32)
+    let status = lsenext_core::state_status()
+        .unwrap_or_else(|error| lsenext_core::StateStatus::Invalid(error.to_string()));
+
+    let state = match self.kind {
+        CommandKind::PickSource => ECS_ENABLED,
+
+    CommandKind::EditSources | CommandKind::ClearSource => {
+        if matches!(status, lsenext_core::StateStatus::Missing) {
+            ECS_HIDDEN
+        } else {
+            ECS_ENABLED
+        }
+    }
+
+    #[cfg(feature = "diagnostics")]
+    CommandKind::Diagnostics => ECS_ENABLED,
+
+    CommandKind::DropSymbolic | CommandKind::DropRelativeSymbolic => {
+        if matches!(status, lsenext_core::StateStatus::Ready(_)) {
+            ECS_ENABLED
+        } else {
+            ECS_HIDDEN
+        }
+    }
+
+    CommandKind::DropJunction => match &status {
+        lsenext_core::StateStatus::Ready(state)
+            if LinkKind::Junction.supports_sources(&state.sources) =>
+        {
+            ECS_ENABLED
+        }
+        _ => ECS_HIDDEN,
+    },
+
+    CommandKind::DropHardLink => match &status {
+        lsenext_core::StateStatus::Ready(state)
+            if LinkKind::HardLink.supports_sources(&state.sources) =>
+        {
+            ECS_ENABLED
+        }
+        _ => ECS_HIDDEN,
+    },
+
+    CommandKind::CreateSymbolic | CommandKind::CreateRelativeSymbolic => ECS_ENABLED,
+
+    CommandKind::CreateJunction => {
+        if items_all_dirs(items) {
+            ECS_ENABLED
+        } else {
+            ECS_HIDDEN
+        }
+    }
+
+    CommandKind::CreateHardLink => {
+        if items_all_files(items) {
+            ECS_ENABLED
+        } else {
+            ECS_HIDDEN
+        }
+    }
+    };
+    Ok(state.0 as u32)
     }
 
     fn Invoke(
@@ -295,6 +322,7 @@ impl IExplorerCommand_Impl for MenuCommand_Impl {
     ) -> windows::core::Result<()> {
         let result: Result<(), String> = match self.kind {
             CommandKind::PickSource => pick_sources(items),
+            CommandKind::EditSources => edit_sources_file(),
             CommandKind::DropSymbolic => drop_links(items, LinkKind::Symbolic),
             CommandKind::DropRelativeSymbolic => drop_links(items, LinkKind::RelativeSymbolic),
             CommandKind::DropJunction => drop_links(items, LinkKind::Junction),
@@ -496,7 +524,10 @@ pub extern "system" fn LSENextVersion() -> PCSTR {
 }
 
 fn enumerate_commands(root_kind: RootKind) -> windows::core::Result<IEnumExplorerCommand> {
-    let commands = menu_command_kinds(root_kind, load_state().ok().flatten())
+    let status = lsenext_core::state_status()
+        .unwrap_or_else(|error| lsenext_core::StateStatus::Invalid(error.to_string()));
+
+    let commands = menu_command_kinds(root_kind, status)
         .into_iter()
         .map(|kind| MenuCommand { kind }.into())
         .collect();
@@ -508,11 +539,15 @@ fn enumerate_commands(root_kind: RootKind) -> windows::core::Result<IEnumExplore
     .into())
 }
 
-pub fn menu_command_kinds(root_kind: RootKind, state: Option<SelectionState>) -> Vec<CommandKind> {
+pub fn menu_command_kinds(
+    root_kind: RootKind,
+    status: lsenext_core::StateStatus,
+) -> Vec<CommandKind> {
     let mut commands = match root_kind {
         RootKind::File | RootKind::Directory => vec![CommandKind::PickSource],
         RootKind::Background => Vec::new(),
     };
+
     if root_kind == RootKind::File {
         commands.extend([
             CommandKind::CreateSymbolic,
@@ -524,19 +559,32 @@ pub fn menu_command_kinds(root_kind: RootKind, state: Option<SelectionState>) ->
         commands.push(CommandKind::Diagnostics);
         return commands;
     }
-    if let Some(state) = state {
-        commands.push(CommandKind::DropSymbolic);
-        commands.push(CommandKind::DropRelativeSymbolic);
-        if LinkKind::Junction.supports_sources(&state.sources) {
-            commands.push(CommandKind::DropJunction);
+
+    match status {
+        lsenext_core::StateStatus::Ready(state) => {
+            commands.push(CommandKind::DropSymbolic);
+            commands.push(CommandKind::DropRelativeSymbolic);
+
+            if LinkKind::Junction.supports_sources(&state.sources) {
+                commands.push(CommandKind::DropJunction);
+            }
+            if LinkKind::HardLink.supports_sources(&state.sources) {
+                commands.push(CommandKind::DropHardLink);
+            }
+
+            commands.push(CommandKind::EditSources);
+            commands.push(CommandKind::ClearSource);
         }
-        if LinkKind::HardLink.supports_sources(&state.sources) {
-            commands.push(CommandKind::DropHardLink);
+        lsenext_core::StateStatus::Empty | lsenext_core::StateStatus::Invalid(_) => {
+            commands.push(CommandKind::EditSources);
+            commands.push(CommandKind::ClearSource);
         }
-        commands.push(CommandKind::ClearSource);
+        lsenext_core::StateStatus::Missing => {}
     }
+
     #[cfg(feature = "diagnostics")]
     commands.push(CommandKind::Diagnostics);
+
     commands
 }
 
@@ -578,6 +626,40 @@ fn pick_sources(items: Option<&IShellItemArray>) -> Result<(), String> {
     save_sources(&paths)
         .map(|_| ())
         .map_err(|err| err.to_string())
+}
+
+fn edit_sources_file() -> Result<(), String> {
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    let path = lsenext_core::state_file().map_err(|error| error.to_string())?;
+    if !path.exists() {
+        return Err("state.json does not exist".to_string());
+    }
+
+    let operation = lsenext_core::wide_null("open");
+    let file = lsenext_core::wide_null(&path.to_string_lossy());
+
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            file.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL as i32,
+        )
+    };
+
+    if (result as isize) <= 32 {
+        return Err(format!(
+            "failed to open '{}', ShellExecuteW code {}",
+            path.display(),
+            result as isize
+        ));
+    }
+
+    Ok(())
 }
 
 fn drop_links(items: Option<&IShellItemArray>, kind: LinkKind) -> Result<(), String> {
@@ -759,7 +841,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            menu_command_kinds(RootKind::Directory, Some(state)),
+            menu_command_kinds(RootKind::Directory, lsenext_core::StateStatus::Ready(state)),
             with_diagnostics(vec![
                 CommandKind::PickSource,
                 CommandKind::DropSymbolic,
@@ -780,7 +862,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            menu_command_kinds(RootKind::Directory, Some(state)),
+            menu_command_kinds(RootKind::Directory, lsenext_core::StateStatus::Ready(state)),
             with_diagnostics(vec![
                 CommandKind::PickSource,
                 CommandKind::DropSymbolic,
@@ -794,7 +876,7 @@ mod tests {
     #[test]
     fn no_state_only_shows_pick_source() {
         assert_eq!(
-            menu_command_kinds(RootKind::Directory, None),
+            menu_command_kinds(RootKind::Directory, lsenext_core::StateStatus::Missing),
             with_diagnostics(vec![CommandKind::PickSource])
         );
     }
@@ -802,7 +884,7 @@ mod tests {
     #[test]
     fn file_root_shows_pick_source_and_create_links() {
         assert_eq!(
-            menu_command_kinds(RootKind::File, None),
+            menu_command_kinds(RootKind::File, lsenext_core::StateStatus::Missing),
             with_diagnostics(vec![
                 CommandKind::PickSource,
                 CommandKind::CreateSymbolic,
@@ -823,7 +905,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            menu_command_kinds(RootKind::Background, Some(state)),
+            menu_command_kinds(RootKind::Background, lsenext_core::StateStatus::Ready(state)),
             with_diagnostics(vec![
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
@@ -843,7 +925,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            menu_command_kinds(RootKind::Background, Some(state)),
+            menu_command_kinds(RootKind::Background, lsenext_core::StateStatus::Ready(state)),
             with_diagnostics(vec![
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
@@ -869,7 +951,7 @@ mod tests {
             ],
         };
         assert_eq!(
-            menu_command_kinds(RootKind::Directory, Some(state)),
+            menu_command_kinds(RootKind::Directory, lsenext_core::StateStatus::Ready(state)),
             with_diagnostics(vec![
                 CommandKind::PickSource,
                 CommandKind::DropSymbolic,

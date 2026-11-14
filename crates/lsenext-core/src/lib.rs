@@ -14,5 +14,8 @@ pub use links::{
     create_link, destination_for, execute_batch, is_elevation_required, BatchLinkError, LinkError,
     LinkKind,
 };
-pub use state::{clear_state, load_state, save_sources, PickedSource, SelectionState};
+pub use state::{
+    clear_state, load_state, save_sources, state_file, state_status, PickedSource,
+    SelectionState, StateStatus,
+};
 pub use ui::{ask_yes_no, show_error, show_info, show_message, wide_null};

@@ -12,6 +12,8 @@ pub enum StateError {
     #[error("source does not exist: {0}")]
     MissingSource(PathBuf),
     #[error("failed to access path {path}: {source}")]
+    #[error("invalid link source state: {0}")]
+    InvalidState(String),
     Io {
         path: PathBuf,
         #[source]
@@ -33,6 +35,14 @@ pub struct PickedSource {
 pub struct SelectionState {
     pub picked_at_unix: u64,
     pub sources: Vec<PickedSource>,
+}
+
+#[derive(Debug, Clone)]
+pub enum StateStatus {
+    Missing,
+    Invalid(String),
+    Empty,
+    Ready(SelectionState),
 }
 
 pub fn state_file() -> Result<PathBuf, StateError> {
@@ -77,16 +87,90 @@ pub fn save_sources(paths: &[PathBuf]) -> Result<SelectionState, StateError> {
     Ok(state)
 }
 
-pub fn load_state() -> Result<Option<SelectionState>, StateError> {
-    let path = state_file()?;
-    if !path.exists() {
-        return Ok(None);
+fn validate_sources(sources: &[PickedSource]) -> Result<(), String> {
+    if sources.is_empty() {
+        return Err("sources array is empty".to_string());
     }
-    let data = fs::read(&path).map_err(|source| StateError::Io {
-        path: path.clone(),
-        source,
-    })?;
-    Ok(Some(serde_json::from_slice(&data)?))
+
+    for source in sources {
+        if source.path.as_os_str().is_empty() {
+            return Err("source path is empty".to_string());
+        }
+
+        let metadata = fs::metadata(&source.path).map_err(|error| {
+            format!(
+                "cannot access source '{}': {}",
+                source.path.display(),
+                error
+            )
+        })?;
+
+        let actual_is_dir = metadata.is_dir();
+        if !actual_is_dir && !metadata.is_file() {
+            return Err(format!(
+                "source is neither a file nor a directory: '{}'",
+                source.path.display()
+            ));
+        }
+
+        if source.is_dir != actual_is_dir {
+            return Err(format!(
+                "source type does not match is_dir for '{}'",
+                source.path.display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn state_status() -> Result<StateStatus, StateError> {
+    let path = state_file()?;
+
+    let data = match fs::read(&path) {
+        Ok(data) => data,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(StateStatus::Missing);
+        }
+        Err(error) => {
+            return Ok(StateStatus::Invalid(format!(
+                "cannot read '{}': {}",
+                path.display(),
+                error
+            )));
+        }
+    };
+
+    let state: SelectionState = match serde_json::from_slice(&data) {
+        Ok(state) => state,
+        Err(error) => {
+            return Ok(StateStatus::Invalid(format!(
+                "invalid JSON in '{}': {}",
+                path.display(),
+                error
+            )));
+        }
+    };
+
+    if state.sources.is_empty() {
+        return Ok(StateStatus::Empty);
+    }
+
+    match validate_sources(&state.sources) {
+        Ok(()) => Ok(StateStatus::Ready(state)),
+        Err(error) => Ok(StateStatus::Invalid(error)),
+    }
+}
+
+pub fn load_state() -> Result<Option<SelectionState>, StateError> {
+    match state_status()? {
+        StateStatus::Missing => Ok(None),
+        StateStatus::Ready(state) => Ok(Some(state)),
+        StateStatus::Empty => Err(StateError::InvalidState(
+            "sources array is empty".to_string(),
+        )),
+        StateStatus::Invalid(error) => Err(StateError::InvalidState(error)),
+    }
 }
 
 pub fn clear_state() -> Result<(), StateError> {

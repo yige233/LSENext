@@ -9,6 +9,7 @@
   "create_junction": "Create Directory Junctions...",
   "create_hardlink": "Create Hard Links...",
   "clear_source": "Clear Link Source",
+  "edit_sources": "Edit Link Sources",
   "diagnostics": "Debug Diagnostics",
   "about_description": "Quick symbolic, hard link, and directory junction creation.",
   "developer_mode_enabled": "Developer Mode: Enabled (Symbolic links require no UAC)",

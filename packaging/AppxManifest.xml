@@ -46,6 +46,7 @@
               <com:Class Id="32ad61d5-1919-4582-95dc-d9eb0bb6e000" Path="lsenext-shell.dll" ThreadingModel="Both" />
               <com:Class Id="32ad61d5-1919-4582-95dc-d9eb0bb6e005" Path="lsenext-shell.dll" ThreadingModel="Both" />
               <com:Class Id="32ad61d5-1919-4582-95dc-d9eb0bb6e006" Path="lsenext-shell.dll" ThreadingModel="Both" />
+              <com:Class Id="32ad61d5-1919-4582-95dc-d9eb0bb6e00e" Path="lsenext-shell.dll" ThreadingModel="Both" />
             </com:SurrogateServer>
           </com:ComServer>
         </com:Extension>
