@@ -847,6 +847,7 @@ mod tests {
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
                 CommandKind::DropHardLink,
+                CommandKind::EditSources,
                 CommandKind::ClearSource,
             ])
         );
@@ -868,6 +869,7 @@ mod tests {
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
                 CommandKind::DropJunction,
+                CommandKind::EditSources,
                 CommandKind::ClearSource,
             ])
         );
@@ -910,6 +912,7 @@ mod tests {
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
                 CommandKind::DropJunction,
+                CommandKind::EditSources,
                 CommandKind::ClearSource,
             ])
         );
@@ -930,6 +933,7 @@ mod tests {
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
                 CommandKind::DropHardLink,
+                CommandKind::EditSources,
                 CommandKind::ClearSource,
             ])
         );
@@ -956,6 +960,7 @@ mod tests {
                 CommandKind::PickSource,
                 CommandKind::DropSymbolic,
                 CommandKind::DropRelativeSymbolic,
+                CommandKind::EditSources,
                 CommandKind::ClearSource,
             ])
         );
