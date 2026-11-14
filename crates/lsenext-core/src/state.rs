@@ -12,6 +12,7 @@ pub enum StateError {
     #[error("source does not exist: {0}")]
     MissingSource(PathBuf),
     #[error("failed to access path {path}: {source}")]
+    MissingLocalAppData,
     #[error("invalid link source state: {0}")]
     InvalidState(String),
     Io {
