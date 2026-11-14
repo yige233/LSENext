@@ -45,9 +45,42 @@ pub enum StateStatus {
     Ready(SelectionState),
 }
 
+#[cfg(windows)]
+fn current_package_family_name() -> Option<String> {
+    use windows_sys::Win32::System::WinRT::GetCurrentPackageFamilyName;
+
+    let mut buffer = vec![0u16; 256];
+    let mut length = buffer.len() as u32;
+
+    let result = unsafe {
+        GetCurrentPackageFamilyName(&mut length, buffer.as_mut_ptr())
+    };
+
+    if result != 0 {
+        return None;
+    }
+
+    let end = buffer.iter().position(|&unit| unit == 0).unwrap_or(buffer.len());
+    Some(String::from_utf16_lossy(&buffer[..end]))
+}
+
 pub fn state_file() -> Result<PathBuf, StateError> {
-    let base = env::var_os("LOCALAPPDATA").ok_or(StateError::MissingLocalAppData)?;
-    Ok(PathBuf::from(base).join("LSENext").join("state.json"))
+    let local_app_data =
+        env::var_os("LOCALAPPDATA").ok_or(StateError::MissingLocalAppData)?;
+    let base = PathBuf::from(local_app_data);
+
+    #[cfg(windows)]
+    if let Some(package_family_name) = current_package_family_name() {
+        return Ok(base
+            .join("Packages")
+            .join(package_family_name)
+            .join("LocalCache")
+            .join("Local")
+            .join("LSENext")
+            .join("state.json"));
+    }
+
+    Ok(base.join("LSENext").join("state.json"))
 }
 
 pub fn save_sources(paths: &[PathBuf]) -> Result<SelectionState, StateError> {
