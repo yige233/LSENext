@@ -47,11 +47,28 @@ pub enum StateStatus {
 
 #[cfg(windows)]
 fn current_package_family_name() -> Option<String> {
-    use windows_sys::Win32::System::WinRT::GetCurrentPackageFamilyName;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentPackageFamilyName(
+            package_family_name_length: *mut u32,
+            package_family_name: *mut u16,
+        ) -> i32;
+    }
 
-    let mut buffer = vec![0u16; 256];
-    let mut length = buffer.len() as u32;
+    const ERROR_INSUFFICIENT_BUFFER: i32 = 122;
 
+    // 第一次调用查询所需缓冲区长度；打包程序应返回 ERROR_INSUFFICIENT_BUFFER。
+    let mut length = 0u32;
+    let result = unsafe {
+        GetCurrentPackageFamilyName(&mut length, std::ptr::null_mut())
+    };
+
+    if result != ERROR_INSUFFICIENT_BUFFER || length == 0 {
+        // 未打包运行时通常返回 APPMODEL_ERROR_NO_PACKAGE。
+        return None;
+    }
+
+    let mut buffer = vec![0u16; length as usize];
     let result = unsafe {
         GetCurrentPackageFamilyName(&mut length, buffer.as_mut_ptr())
     };
@@ -61,7 +78,13 @@ fn current_package_family_name() -> Option<String> {
     }
 
     let end = buffer.iter().position(|&unit| unit == 0).unwrap_or(buffer.len());
-    Some(String::from_utf16_lossy(&buffer[..end]))
+    let name = String::from_utf16(&buffer[..end]).ok()?;
+
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
 }
 
 pub fn state_file() -> Result<PathBuf, StateError> {
