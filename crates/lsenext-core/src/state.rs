@@ -9,12 +9,11 @@ use thiserror::Error;
 pub enum StateError {
     #[error("LOCALAPPDATA is not available")]
     MissingLocalAppData,
+    #[error("invalid link source state: {0}")]
+    InvalidState(String),
     #[error("source does not exist: {0}")]
     MissingSource(PathBuf),
     #[error("failed to access path {path}: {source}")]
-    MissingLocalAppData,
-    #[error("invalid link source state: {0}")]
-    InvalidState(String),
     Io {
         path: PathBuf,
         #[source]
